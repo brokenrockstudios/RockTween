@@ -1,0 +1,34 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "RockTween",
+	"Description": "Small, fast tweening for gameplay and UI. C++ first.",
+	"Category": "Rock",
+	"CreatedBy": "Broken Rock Studios",
+	"CreatedByURL": "https://brokenrockstudios.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "RockTween",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RockTweenTests",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "RockCore",
+			"Enabled": true
+		}
+	]
+}
