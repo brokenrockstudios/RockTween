@@ -14,6 +14,7 @@ public class RockTween : ModuleRules
 				"Core",
 				"CoreUObject",
 				"RockCore",
+				"Engine",
 			}
 		);
 	}
