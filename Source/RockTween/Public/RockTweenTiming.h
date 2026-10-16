@@ -115,6 +115,9 @@ namespace RockTweenTiming
 	/** The eased progress for State: 0 is the start value, 1 the end value. Backward legs play Ease(1 - p); a completed yoyo ends on 0. */
 	ROCKTWEEN_API double Evaluate(const FRockTweenTiming& Timing, const FRockTweenTimingState& State);
 
+	/** Seconds played since Play at State (Delay, finished plays with their RepeatDelays, and the time inside the current phase). A completed state gives TotalDuration. */
+	ROCKTWEEN_API double TimeAtState(const FRockTweenTiming& Timing, const FRockTweenTimingState& State);
+
 	/** Closed form of Advance from a fresh state: the state after TimeSincePlay seconds, without events. */
 	ROCKTWEEN_API FRockTweenTimingState StateAtTime(const FRockTweenTiming& Timing, double TimeSincePlay);
 }

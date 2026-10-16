@@ -206,6 +206,24 @@ double RockTweenTiming::Evaluate(const FRockTweenTiming& Timing, const FRockTwee
 	}
 }
 
+double RockTweenTiming::TimeAtState(const FRockTweenTiming& Timing, const FRockTweenTimingState& State)
+{
+	using namespace RockTweenTimingPrivate;
+
+	const double RepeatDelay = NonNegative(Timing.RepeatDelay);
+	// A play k >= 1 is preceded by its RepeatDelay.
+	const double PlayStart = NonNegative(Timing.Delay) + static_cast<double>(State.PlaysDone) * (PlayLength(Timing) + RepeatDelay);
+	switch (State.Phase)
+	{
+	case ERockTweenPhase::Delay: return State.Elapsed;
+	case ERockTweenPhase::Forward: return PlayStart + State.Elapsed;
+	case ERockTweenPhase::Hold: return PlayStart + LegLength(Timing) + State.Elapsed;
+	case ERockTweenPhase::Backward: return PlayStart + LegLength(Timing) + NonNegative(Timing.Hold) + State.Elapsed;
+	case ERockTweenPhase::RepeatDelay: return PlayStart - RepeatDelay + State.Elapsed;
+	default: return TotalDuration(Timing);
+	}
+}
+
 FRockTweenTimingState RockTweenTiming::StateAtTime(const FRockTweenTiming& Timing, double TimeSincePlay)
 {
 	using namespace RockTweenTimingPrivate;

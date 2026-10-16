@@ -90,10 +90,86 @@ namespace
 		const double X = FMath::Clamp((P - X0) / (X1 - X0), 0.0, 1.0);
 		return X * X * (3.0 - 2.0 * X);
 	}
+
+	// Integer hash (murmur3 finalizer) to a lattice value in [-1, 1]. Platform independent, no global RNG state.
+	double LatticeValue(int32 Seed, int64 Index)
+	{
+		uint32 H = static_cast<uint32>(Seed) * 0x9E3779B1u ^ static_cast<uint32>(Index) * 0x85EBCA6Bu ^ static_cast<uint32>(Index >> 32);
+		H ^= H >> 16; H *= 0x85EBCA6Bu;
+		H ^= H >> 13; H *= 0xC2B2AE35u;
+		H ^= H >> 16;
+		return static_cast<double>(H) / 2147483647.5 - 1.0;
+	}
+
+	// Smooth value noise: one random value per lattice point, smoothstep between neighbours.
+	double ValueNoise(int32 Seed, double X)
+	{
+		const double Floor = FMath::FloorToDouble(X);
+		const double Frac = X - Floor;
+		const double Blend = Frac * Frac * (3.0 - 2.0 * Frac);
+		const int64 Index = static_cast<int64>(Floor);
+		return FMath::Lerp(LatticeValue(Seed, Index), LatticeValue(Seed, Index + 1), Blend);
+	}
+
+	// Step response of a unit-gain second order system from 0 to 1: natural frequency 2 pi f, damping ratio Zeta.
+	double SpringStep(double T, double Frequency, double Zeta)
+	{
+		const double W = TwoPi * FMath::Max(1e-4, Frequency);
+		Zeta = FMath::Max(0.0, Zeta);
+		if (FMath::Abs(Zeta - 1.0) < 1e-6)
+		{
+			return 1.0 - FMath::Exp(-W * T) * (1.0 + W * T);
+		}
+		if (Zeta < 1.0)
+		{
+			const double Wd = W * FMath::Sqrt(1.0 - Zeta * Zeta);
+			return 1.0 - FMath::Exp(-Zeta * W * T) * (FMath::Cos(Wd * T) + Zeta * W / Wd * FMath::Sin(Wd * T));
+		}
+		// Overdamped, written with the two decaying roots so a long leg cannot overflow cosh/sinh.
+		const double Root = W * FMath::Sqrt(Zeta * Zeta - 1.0);
+		const double R1 = -Zeta * W + Root;
+		const double R2 = -Zeta * W - Root;
+		return 1.0 - (R2 * FMath::Exp(R1 * T) - R1 * FMath::Exp(R2 * T)) / (R2 - R1);
+	}
+}
+
+bool RockTweenEase::IsShape(ERockTweenEase Ease)
+{
+	return Ease == ERockTweenEase::DampedWiggle || Ease == ERockTweenEase::Punch || Ease == ERockTweenEase::Shake || Ease == ERockTweenEase::Spring;
+}
+
+double RockTweenEase::EvaluateShape(ERockTweenEase Ease, double Seconds, double Duration, const FRockTweenEaseParams& Params)
+{
+	if (!IsShape(Ease))
+	{
+		return Evaluate(Ease, Duration > 0.0 ? Seconds / Duration : 1.0, Params);
+	}
+	// Before the leg (and NaN) every shape is at rest on 0; from the duration on it is at its end value.
+	if (!(Seconds >= 0.0))
+	{
+		return 0.0;
+	}
+	if (Seconds >= Duration)
+	{
+		return Ease == ERockTweenEase::Spring ? 1.0 : 0.0;
+	}
+	const double Frequency = Params.Frequency;
+	switch (Ease)
+	{
+	case ERockTweenEase::DampedWiggle: return FMath::Cos(TwoPi * Frequency * Seconds) * FMath::Exp(-static_cast<double>(Params.Decay) * Seconds);
+	case ERockTweenEase::Punch: return FMath::Sin(TwoPi * Frequency * Seconds) * FMath::Exp(-static_cast<double>(Params.Decay) * Seconds);
+	case ERockTweenEase::Shake: return ValueNoise(Params.Seed, Seconds * FMath::Max(0.0, Frequency)) * (1.0 - Seconds / Duration);
+	default: return SpringStep(Seconds, Frequency, Params.Decay);
+	}
 }
 
 double RockTweenEase::Evaluate(ERockTweenEase Ease, double Alpha, const FRockTweenEaseParams& Params)
 {
+	// A shape is not an easing from 0 to 1: it runs on seconds, here a one second leg.
+	if (IsShape(Ease))
+	{
+		return EvaluateShape(Ease, Alpha, 1.0, Params);
+	}
 	// !(Alpha > 0) also catches NaN. Exact endpoints for every ease: the closed forms below can land 1 ulp off.
 	if (!(Alpha > 0.0))
 	{
@@ -162,6 +238,12 @@ double RockTweenEase::Evaluate(ERockTweenEase Ease, double Alpha, const FRockTwe
 		const double Steps = FMath::Max(1, Params.Steps);
 		return FMath::Floor(P * Steps) / Steps;
 	}
+
+	case ERockTweenEase::DampedWiggle:
+	case ERockTweenEase::Punch:
+	case ERockTweenEase::Shake:
+	case ERockTweenEase::Spring:
+		break; // handled above
 	}
 	return P;
 }
